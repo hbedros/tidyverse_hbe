@@ -1,0 +1,145 @@
+---
+title: 'tidyverse: Leveraging mutate for Data Transformation'
+author: "Haig Bedros"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Visualizing Presidential Poll Averages (1968-2016) with TidyVerse  
+In this vignette, we'll explore the `polls_2016` dataset from `FiveThirtyEight`. Our objective is to showcase the capabilities of `TidyVerse` packages, specifically `dplyr` and `ggplot2`, in analyzing and visualizing the trend of average polls for presidential candidates from 1968 to 2016.  
+
+## Setting Up  
+```{r library, results='hide'}
+# Load necessary libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+## Loading the Data  
+Here, we will highlight the utility of two essential functions from the tidyverse suite: `read_csv()` for data loading and `filter()` for data filtering.
+```{r data, results='hide'}
+# Read the CSV data
+polls <- read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/polls/pres_pollaverages_1968-2016.csv")
+
+# Filtering rows where cycle is 2016
+polls_2016 <- polls %>% 
+  filter(cycle == 2016)
+
+# Display the first few rows of the dataset
+head(polls_2016)
+glimpse(polls_2016)
+```
+
+## Data Exploration  
+
+### Voting Trend by State in 2016
+In this section, we'll visualize the `pct_estimate` trend for the presidential candidates in each state during the 2016 elections. We employ the `mutate()` and `str_replace_all()` functions to ensure that the state names in our dataset are consistent and correctly formatted.
+
+```{r}
+# Check state names
+state_names <- unique(polls_2016$state)
+print(state_names)
+
+# Ensure that all state names are properly formatted
+polls_2016 <- polls_2016 %>%
+  mutate(state = str_replace_all(state, c("^ME-\\d" = "Maine", "^NE-\\d" = "Nebraska")))
+
+# Plotting the data
+polls_2016 %>%
+  ggplot(aes(x=state, y=pct_estimate, fill=candidate_name)) +
+  geom_bar(stat="identity", position="dodge") +
+  labs(title="Estimated Poll Percentage of Presidential Candidates by State in 2016",
+       x="State",
+       y="Estimated Poll Percentage",
+       fill="Candidate") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+### States Where Top Two Presidential Candidates Were Most Popular in 2016  
+In this analysis, we aim to identify the states where each of the top two presidential candidates of 2016 had the highest average poll rating. This will provide insights into key battlegrounds and stronghold regions for each candidate.
+
+```{r}
+# Determine the top 2 candidates based on overall average pct_estimate
+top_2_candidates <- polls_2016 %>%
+  group_by(candidate_name) %>%
+  summarize(avg_pct_estimate = mean(pct_estimate, na.rm = TRUE)) %>%
+  arrange(desc(avg_pct_estimate)) %>%
+  slice(1:2) %>%
+  pull(candidate_name)
+
+top_2_candidates
+
+# Identify the state where each of the top 2 candidates is most popular
+most_popular_states_for_each_candidate <- polls_2016 %>%
+  filter(candidate_name %in% top_2_candidates) %>%
+  group_by(candidate_name, state) %>%
+  summarize(state_avg_pct = mean(pct_estimate, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(candidate_name, desc(state_avg_pct)) %>%
+  group_by(candidate_name) %>%
+  slice(1) %>%  # Take the top state for each candidate
+  ungroup()
+
+most_popular_states_for_each_candidate
+```
+
+### Key Functions Used:  
+- `group_by():` Groups data by specified variables.
+- `summarize():` Aggregates data, like finding the mean of a group.
+- `arrange():` Orders rows by specific variables.
+- `slice():` Selects rows by their position.
+- `filter():` Filters rows based on conditions.
+- `pull():` Extracts a column as a vector.
+
+By executing the above code, we can pinpoint the states where Donald Trump and Hillary Clinton had their strongest support in terms of average poll ratings during the 2016 elections.
+
+## Focusing on the mutate() Function  
+The `mutate()` function is part of the `dplyr` package and is used for creating or transforming columns in a data frame. It's a handy function when we want to perform operations on existing columns to generate new ones.
+
+### Example: Calculating the Difference from the Maximum Poll  
+Let's say we want to calculate how far each candidate's average poll is from the highest average poll for each year.  
+We can use the `mutate()` function to create a new column that represents this difference.
+
+The code creates a new dataset `polls_2016_transformed` by adding a column `diff_estimate_trend`. This column captures the difference between the raw poll estimate `pct_estimate` and its trend-adjusted value `pct_trend_adjusted` , helping us understand the variance in poll data.
+
+```{r}
+polls_2016_transformed <- polls_2016 %>%
+  mutate(diff_estimate_trend = pct_estimate - pct_trend_adjusted)
+
+# Displaying the first few rows of the modified dataset
+head(polls_2016_transformed)
+
+```
+
+In the above code:  
+
+1. We first group the data by the `year` column using `group_by(year)`. This ensures that our subsequent operations are performed within each year.
+2. We then use `mutate()` to create a new column called `diff_from_max`. For each row, this column is calculated as the difference between the maximum average poll of that year and the candidate's average poll.
+
+### Visualizing the Difference from the Trend-Adjusted Poll
+We'll visualize the difference between the raw poll estimate and its trend-adjusted value for each candidate during the 2016 elections.  
+```{r}
+polls_2016_transformed %>%
+  ggplot(aes(x=cycle, y=diff_estimate_trend, color=candidate_name)) +
+  geom_line() +
+  labs(title="Difference Between Pct Estimate and Pct Trend Adjusted Over the Years",
+       x="Election Cycle",
+       y="Difference",
+       color="Candidate") +
+  theme_minimal()
+
+```
+
+By using the `mutate()` function, we were able to easily create a new column in our dataset and derive additional insights from our data. This function is a versatile tool for data manipulation and can be used in a variety of scenarios to enhance our data analysis.
+
+## Conclusion  
+In this vignette, we explored the `polls_2016` dataset using `Tidyerse` tools. Our visualizations highlighted trends in presidential poll averages, and the use of functions like `mutate()` showcased the ease of data manipulation with `dplyr`. The TidyVerse ecosystem proves to be a powerful ally in understanding and visualizing complex datasets, enabling clear insights into historical polling data.
+
